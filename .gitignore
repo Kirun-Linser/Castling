@@ -1,0 +1,13 @@
+# build artifacts
+src/memclean_res.o
+*.o
+
+# macOS build outputs
+macos/mc-arm64
+macos/mc-amd64
+
+# temp
+*.tmp
+
+# release artifacts
+dist/
