@@ -1,5 +1,7 @@
 # MemoryCleaner
 
+[English](README.en.md) | [简体中文](README.md)
+
 轻量级内存清理工具，Windows / macOS 双平台。原理：压缩进程工作集、清空系统备用内存。
 
 ## 功能

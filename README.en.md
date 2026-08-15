@@ -1,5 +1,7 @@
 # MemoryCleaner
 
+[简体中文](README.md) | [English](README.en.md)
+
 A lightweight memory cleaner for Windows and macOS. How it works: trims process working sets and clears system standby memory.
 
 ## Features
