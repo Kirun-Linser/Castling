@@ -1,5 +1,5 @@
 @echo off
-rem MemoryCleaner Windows build script (MinGW-w64)
+rem Castling Windows build script (MinGW-w64)
 setlocal
 if "%1"=="" (
     set MINGW=%LOCALAPPDATA%\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin
