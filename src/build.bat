@@ -6,7 +6,7 @@ if "%1"=="" (
 ) else (
     set MINGW=%1
 )
-set OUT=..\dist\MemoryCleaner.exe
+set OUT=..\dist\Castling.exe
 echo [1/2] windres resources...
 "%MINGW%\windres.exe" memclean.rc -O coff -o memclean_res.o || exit /b 1
 echo [2/2] gcc build...

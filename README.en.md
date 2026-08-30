@@ -1,4 +1,4 @@
-# MemoryCleaner
+# Castling (王车易位)
 
 [简体中文](README.md) | [English](README.en.md)
 
@@ -25,7 +25,7 @@ dist/       prebuilt releases
 ```bat
 cd src
 windres memclean.rc -O coff -o memclean_res.o
-gcc -mwindows -O2 -static -specs=gcc.specs memclean.c memclean_res.o -o MemoryCleaner.exe -lcomctl32 -lpsapi -lgdiplus -lole32
+gcc -mwindows -O2 -static -specs=gcc.specs memclean.c memclean_res.o -o Castling.exe -lcomctl32 -lpsapi -lgdiplus -lole32
 ```
 
 Note: `gcc.specs` removes the default manifest (to avoid conflicts with the custom manifest).
@@ -44,10 +44,10 @@ Then place the binary inside an `.app` bundle.
 
 | File | Description |
 |---|---|
-| `MemoryCleaner.exe` | Windows main program (runs directly on Win10/11, zero dependencies) |
-| `MemoryCleaner-便携版.zip` | Windows portable package (exe + instructions) |
-| `MemoryCleaner-macOS.zip` | macOS script version (terminal + system popup) |
-| `MemoryCleaner-macOS-app.tar.gz` | macOS native app (Intel + Apple Silicon) |
+| `Castling.exe` | Windows main program (runs directly on Win10/11, zero dependencies) |
+| `Castling-便携版.zip` | Windows portable package (exe + instructions) |
+| `Castling-macOS.zip` | macOS script version (terminal + system popup) |
+| `Castling-macOS-app.tar.gz` | macOS native app (Intel + Apple Silicon) |
 
 ## System Requirements
 

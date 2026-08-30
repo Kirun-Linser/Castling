@@ -1,4 +1,4 @@
-# MemoryCleaner
+# Castling（王车易位）
 
 [English](README.en.md) | [简体中文](README.md)
 
@@ -25,7 +25,7 @@ dist/       编译好的发行物
 ```bat
 cd src
 windres memclean.rc -O coff -o memclean_res.o
-gcc -mwindows -O2 -static -specs=gcc.specs memclean.c memclean_res.o -o MemoryCleaner.exe -lcomctl32 -lpsapi -lgdiplus -lole32
+gcc -mwindows -O2 -static -specs=gcc.specs memclean.c memclean_res.o -o Castling.exe -lcomctl32 -lpsapi -lgdiplus -lole32
 ```
 
 注意：`gcc.specs` 移除了默认 manifest（避免与自定义 manifest 冲突）。
@@ -44,10 +44,10 @@ CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -o mc-amd64 mai
 
 | 文件 | 说明 |
 |---|---|
-| `MemoryCleaner.exe` | Windows 主程序（Win10/11 直接运行，零依赖） |
-| `MemoryCleaner-便携版.zip` | Windows 便携包（exe + 说明） |
-| `MemoryCleaner-macOS.zip` | macOS 脚本版（终端 + 系统弹窗） |
-| `MemoryCleaner-macOS-app.tar.gz` | macOS 原生 App（Intel + Apple 芯片双版本） |
+| `Castling.exe` | Windows 主程序（Win10/11 直接运行，零依赖） |
+| `Castling-便携版.zip` | Windows 便携包（exe + 说明） |
+| `Castling-macOS.zip` | macOS 脚本版（终端 + 系统弹窗） |
+| `Castling-macOS-app.tar.gz` | macOS 原生 App（Intel + Apple 芯片双版本） |
 
 ## 系统要求
 
