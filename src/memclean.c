@@ -280,12 +280,12 @@ static void OnPaint(HWND hwnd) {
     SelectObject(mem, ob2);
     DeleteObject(fBtn);
 
-    /* 悬停提示：按钮下方灰色小字（非管理员时引导以管理员运行获完整效果） */
+    /* 悬停提示：按钮下方灰色小字（非管理员时提示以管理员权限获得最大清理） */
     if (g_btnHover) {
         HFONT fHint = MakeFont(8, FW_NORMAL);
         const wchar_t *hint = g_isAdmin
             ? L"或者按 ESC 关闭弹窗"
-            : L"右键“以管理员身份运行”可获完整效果";
+            : L"以管理员权限使用可获得最大程度上的清理";
         DrawTextCenter(mem, hint, by + bh + 4 * g_scale / 100, W, W, 18 * g_scale / 100, fHint, RGB(0xB4, 0xB9, 0xC2));
         DeleteObject(fHint);
     }
