@@ -13,7 +13,7 @@ BEGIN
     BLOCK "080404b0"
     BEGIN
       VALUE "CompanyName", "Kirun-Linser"
-      VALUE "FileDescription", "Castling 王车易位 内存清理工具"
+      VALUE "FileDescription", "Castling\n清系统文件缓存、刷新已修改页、清空备用内存、压缩进程工作集\n以管理员权限使用可获得最大程度上的清理"
       VALUE "FileVersion", "0.2.1.0"
       VALUE "InternalName", "Castling"
       VALUE "OriginalFilename", "Castling.exe"
