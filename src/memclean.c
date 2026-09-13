@@ -267,9 +267,9 @@ static void OnPaint(HWND hwnd) {
     SelectObject(mem, of);
     DeleteObject(fSub2);
 
-    /* 确定按钮（水平居中；上移留出下方两行悬停提示空间） */
+    /* 确定按钮（水平居中） */
     int bw = 100 * g_scale / 100, bh = 36 * g_scale / 100;
-    int bx = (W - bw) / 2, by = H - pad - bh - 24 * g_scale / 100;
+    int bx = (W - bw) / 2, by = H - pad - bh;
     COLORREF btnC = g_btnHover ? RGB(0x5B, 0x90, 0xFF) : RGB(0x3D, 0x7B, 0xFF);
     DrawRoundRect(mem, bx, by, bw, bh, 15 * g_scale / 100, btnC);
     HFONT fBtn = MakeFont(9, FW_SEMIBOLD);
@@ -280,14 +280,10 @@ static void OnPaint(HWND hwnd) {
     SelectObject(mem, ob2);
     DeleteObject(fBtn);
 
-    /* 悬停提示：按钮下方灰色小字（保留原提示，另加管理员说明，共两行） */
+    /* 悬停提示：按钮下方灰色小字 */
     if (g_btnHover) {
         HFONT fHint = MakeFont(8, FW_NORMAL);
-        const wchar_t *l1 = g_isAdmin ? L"或者按 ESC 关闭弹窗"
-                                      : L"右键「以管理员身份运行」可获完整效果";
-        int hy = by + bh + 4 * g_scale / 100;
-        DrawTextCenter(mem, l1, hy, W, W, 18 * g_scale / 100, fHint, RGB(0xB4, 0xB9, 0xC2));
-        DrawTextCenter(mem, L"以管理员权限使用可获得最大程度上的清理", hy + 17 * g_scale / 100, W, W, 18 * g_scale / 100, fHint, RGB(0xB4, 0xB9, 0xC2));
+        DrawTextCenter(mem, L"或者按 ESC 关闭弹窗", by + bh + 4 * g_scale / 100, W, W, 18 * g_scale / 100, fHint, RGB(0xB4, 0xB9, 0xC2));
         DeleteObject(fHint);
     }
 
@@ -311,7 +307,7 @@ static void InBtn(LPARAM lp, BOOL *in) {
     RECT rc; GetClientRect(g_hwnd, &rc);
     int pad = rc.right / 20;
     int bw = 100 * g_scale / 100, bh = 36 * g_scale / 100;
-    int bx = (rc.right - bw) / 2, by = rc.bottom - pad - bh - 24 * g_scale / 100;  /* 与绘制同一公式 */
+    int bx = (rc.right - bw) / 2, by = rc.bottom - pad - bh;
     POINT p = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
     *in = (p.x >= bx && p.x <= bx + bw && p.y >= by && p.y <= by + bh);
 }
