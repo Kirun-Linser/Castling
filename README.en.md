@@ -2,11 +2,12 @@
 
 [简体中文](README.md) | [English](README.en.md)
 
-A lightweight memory cleaner for Windows and macOS. How it works: trims process working sets and clears system standby memory.
+A lightweight memory cleaner for Windows and macOS. How it works: flushes the system file cache, refreshes the modified page list, purges standby memory and trims process working sets.
 
 ## Features
 
-- **Windows**: iterates all processes calling `SetProcessWorkingSetSize(-1,-1)` + `EmptyWorkingSet`; when run as administrator, additionally enables privileges to clean system processes and clear the Standby List; dark custom popup shows freed memory (MB/GB) and available memory before/after comparison
+- **Windows**: combines official/authoritative cleanup mechanisms — flushes the system file cache (`SetSystemFileCacheSize`), refreshes the modified page list and purges the standby list (`NtSetSystemInformation`), and trims per-process working sets (`SetProcessWorkingSetSize(-1,-1)` + `EmptyWorkingSet`); dark custom popup shows freed memory (MB/GB) and available memory before/after comparison
+- **Run as administrator**: the full cleanup (per-process working-set trim, standby-list purge, system-file-cache flush) requires **"Run as administrator"**; a plain double-click only performs the parts available to a normal user (the popup hints this when you hover the OK button)
 - **macOS**: invokes the official `purge` command to clear inactive memory and system caches; native popup shows the result; double-click to run, no terminal window
 
 ## Directory Layout

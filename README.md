@@ -2,11 +2,12 @@
 
 [English](README.en.md) | [简体中文](README.md)
 
-轻量级内存清理工具，Windows / macOS 双平台。原理：压缩进程工作集、清空系统备用内存。
+轻量级内存清理工具，Windows / macOS 双平台。原理：清系统文件缓存、刷新已修改页、清空备用内存、压缩进程工作集。
 
 ## 功能
 
-- **Windows**：遍历所有进程调用 `SetProcessWorkingSetSize(-1,-1)` + `EmptyWorkingSet`；以管理员运行时额外启用特权清理系统进程并清空 Standby List；深色自绘弹窗显示释放量（MB/GB）与清理前后可用内存对比
+- **Windows**：整合 Windows 官方/权威清理机制——清系统文件缓存（`SetSystemFileCacheSize`）、刷新已修改页链表、清空备用内存（Standby List，`NtSetSystemInformation`），以及逐进程压缩工作集（`SetProcessWorkingSetSize(-1,-1)` + `EmptyWorkingSet`）；深色自绘弹窗显示释放量（MB/GB）与清理前后可用内存对比
+- **以管理员运行**：完整清理（含逐进程工作集压缩、清空备用内存、清系统文件缓存）需**右键「以管理员身份运行」**；普通双击仅执行普通权限可用部分（弹窗悬停「确定」按钮会提示）
 - **macOS**：调用官方 `purge` 命令清除非活跃内存与系统缓存，原生弹窗显示结果，双击即用、无终端窗口
 
 ## 目录结构

@@ -1,6 +1,10 @@
-/* MemoryCleaner - 原生内存清理工具
- * 机制与 PCL2 一致：遍历进程 SetProcessWorkingSetSize(-1,-1) + EmptyWorkingSet
- * 管理员运行时额外：启用特权清理系统进程 + 清空 Standby List（备用内存）
+/* Castling（王车易位） - 原生内存清理工具
+ * 机制（整合 Windows 官方 API 与 RAMMap 同源做法）：
+ *   1) 清系统文件缓存   SetSystemFileCacheSize（memoryapi.h，官方文档化；需 SeIncreaseQuotaPrivilege）
+ *   2) 刷新已修改链表   NtSetSystemInformation(SystemMemoryListInformation, MemoryFlushModifiedList)
+ *   3) 清空备用内存     NtSetSystemInformation(..., MemoryPurgeStandbyList)
+ *   4) 逐进程压缩工作集 SetProcessWorkingSetSize(-1,-1) + EmptyWorkingSet（需 SeDebugPrivilege）
+ * 强度分级：普通双击 = 安全项(1~3)；右键“以管理员身份运行” = 完整(含 4)
  * 深色自绘提示窗口，零运行时依赖
  */
 #define _WIN32_WINNT 0x0A00
@@ -14,10 +18,12 @@
 #include <gdiplus.h>
 #pragma comment(lib, "gdiplus.lib")
 
-/* ---- Standby list 清理 ---- */
+/* ---- 系统内存列表操作（0x50 = SystemMemoryListInformation） ---- */
 typedef LONG (WINAPI *NtSetSystemInformation_t)(ULONG, PVOID, ULONG);
-#define SystemMemoryListInformation 80
-typedef struct { ULONG Version; ULONG Flags; ULONG Count; } MEMORY_LIST_COMMAND;
+typedef BOOL (WINAPI *SetSystemFileCacheSize_t)(SIZE_T, SIZE_T, DWORD);
+#define SystemMemoryListInformation 0x50
+#define MemoryFlushModifiedList     3   /* 刷新已修改页（写回页文件） */
+#define MemoryPurgeStandbyList      4   /* 清空备用内存 Standby List */
 
 static HWND g_hwnd;
 static BOOL g_btnHover;
@@ -38,13 +44,53 @@ static BOOL EnablePrivilege(LPCWSTR name, BOOL *granted) {
     return ok;
 }
 
-static void PurgeStandbyList(void) {
+/* 是否以管理员（已提权）身份运行 —— 决定清理力度 */
+static BOOL IsElevated(void) {
+    BOOL r = FALSE; HANDLE tok = NULL;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok)) {
+        TOKEN_ELEVATION e; DWORD cb = sizeof(e);
+        if (GetTokenInformation(tok, TokenElevation, &e, cb, &cb)) r = e.TokenIsElevated;
+        CloseHandle(tok);
+    }
+    return r;
+}
+
+/* 清系统文件缓存工作集（官方 memoryapi.h API；需 SeIncreaseQuotaPrivilege） */
+static void FlushSystemFileCache(void) {
+    SetSystemFileCacheSize_t fn = (SetSystemFileCacheSize_t)(void*)
+        GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetSystemFileCacheSize");
+    if (fn) fn((SIZE_T)-1, (SIZE_T)-1, 0);
+}
+
+/* 执行系统内存列表命令（刷新已修改链表 / 清空备用内存；需 SeProfileSingleProcessPrivilege） */
+static void PurgeMemoryList(ULONG cmd) {
     HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
     if (!ntdll) return;
     NtSetSystemInformation_t fn = (NtSetSystemInformation_t)(void*)GetProcAddress(ntdll, "NtSetSystemInformation");
-    if (!fn) return;
-    MEMORY_LIST_COMMAND cmd; cmd.Version = 1; cmd.Flags = 2; cmd.Count = 0;
-    fn(SystemMemoryListInformation, &cmd, sizeof(cmd));
+    if (fn) fn(SystemMemoryListInformation, &cmd, sizeof(cmd));
+}
+
+/* 逐进程压缩工作集（完整力度，仅管理员；需 SeDebugPrivilege）。返回成功处理的进程数。 */
+static int TrimAllWorkingSets(void) {
+    int n = 0;
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE) return 0;
+    PROCESSENTRY32W pe; pe.dwSize = sizeof(pe);
+    if (Process32FirstW(snap, &pe)) {
+        do {
+            if (pe.th32ProcessID == GetCurrentProcessId() ||
+                pe.th32ProcessID == 0 || pe.th32ProcessID == 4) continue;  /* 跳过自身 / Idle / System */
+            HANDLE h = OpenProcess(PROCESS_SET_QUOTA | PROCESS_QUERY_INFORMATION, FALSE, pe.th32ProcessID);
+            if (h) {
+                SetProcessWorkingSetSize(h, (SIZE_T)-1, (SIZE_T)-1);
+                EmptyWorkingSet(h);
+                CloseHandle(h);
+                n++;
+            }
+        } while (Process32NextW(snap, &pe));
+    }
+    CloseHandle(snap);
+    return n;
 }
 
 static ULONGLONG AvailMB(void) {
@@ -149,7 +195,7 @@ static void OnPaint(HWND hwnd) {
     DrawTextCenter(mem, big, H * 26 / 100, W, W, 56 * g_scale / 100, fBig, RGB(0xA9, 0xD3, 0xF5));
     DeleteObject(fBig);
 
-    /* 副行（管理员模式拆两行） */
+    /* 副行：管理员=完整清理（拆两行）；普通双击=安全项 */
     if (g_isAdmin) {
         wchar_t sub1[128], sub2[128];
         wsprintfW(sub1, L"已清理 %d 个进程的工作集", g_ok);
@@ -160,7 +206,7 @@ static void OnPaint(HWND hwnd) {
         DeleteObject(fSub);
     } else {
         wchar_t sub[128];
-        wsprintfW(sub, L"已清理 %d 个进程的工作集", g_ok);
+        wsprintfW(sub, L"已清空系统缓存与备用内存");
         HFONT fSub = MakeFont(11, FW_NORMAL);
         DrawTextCenter(mem, sub, H * 49 / 100, W, W, 34 * g_scale / 100, fSub, RGB(0xA8, 0xB0, 0xC2));
         DeleteObject(fSub);
@@ -234,10 +280,13 @@ static void OnPaint(HWND hwnd) {
     SelectObject(mem, ob2);
     DeleteObject(fBtn);
 
-    /* 悬停提示：按钮下方灰色小字 */
+    /* 悬停提示：按钮下方灰色小字（非管理员时引导以管理员运行获完整效果） */
     if (g_btnHover) {
         HFONT fHint = MakeFont(8, FW_NORMAL);
-        DrawTextCenter(mem, L"或者按 ESC 关闭弹窗", by + bh + 4 * g_scale / 100, W, W, 18 * g_scale / 100, fHint, RGB(0xB4, 0xB9, 0xC2));
+        const wchar_t *hint = g_isAdmin
+            ? L"或者按 ESC 关闭弹窗"
+            : L"右键“以管理员身份运行”可获完整效果";
+        DrawTextCenter(mem, hint, by + bh + 4 * g_scale / 100, W, W, 18 * g_scale / 100, fHint, RGB(0xB4, 0xB9, 0xC2));
         DeleteObject(fHint);
     }
 
@@ -331,34 +380,22 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmd, int nShow) {
     GdiplusStartupInput gsi; ZeroMemory(&gsi, sizeof(gsi)); gsi.GdiplusVersion = 1;
     ULONG_PTR gdipToken = 0;
     GdiplusStartup(&gdipToken, &gsi, NULL);
+
+    g_isAdmin = IsElevated();   /* 管理员 = 完整清理；普通双击 = 安全项 */
     g_before = AvailMB();
 
-    g_isAdmin = FALSE;
-    if (EnablePrivilege(L"SeDebugPrivilege", &g_isAdmin) && !g_isAdmin) g_isAdmin = FALSE;
-    if (g_isAdmin) {
-        BOOL dummy;
-        EnablePrivilege(L"SeProfileSingleProcessPrivilege", &dummy);
-        PurgeStandbyList();
-    }
+    /* 提升清理所需特权（管理员下才真正生效） */
+    EnablePrivilege(L"SeDebugPrivilege", NULL);
+    EnablePrivilege(L"SeProfileSingleProcessPrivilege", NULL);
+    EnablePrivilege(L"SeIncreaseQuotaPrivilege", NULL);
 
-    g_ok = 0;
-    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snap != INVALID_HANDLE_VALUE) {
-        PROCESSENTRY32W pe; pe.dwSize = sizeof(pe);
-        if (Process32FirstW(snap, &pe)) {
-            do {
-                if (pe.th32ProcessID == GetCurrentProcessId()) continue;
-                HANDLE h = OpenProcess(PROCESS_SET_QUOTA | PROCESS_QUERY_INFORMATION, FALSE, pe.th32ProcessID);
-                if (h) {
-                    SetProcessWorkingSetSize(h, (SIZE_T)-1, (SIZE_T)-1);
-                    EmptyWorkingSet(h);
-                    CloseHandle(h);
-                    g_ok++;
-                }
-            } while (Process32NextW(snap, &pe));
-        }
-        CloseHandle(snap);
-    }
+    /* 系统级（安全项）：清系统文件缓存 + 刷新已修改链表 + 清空备用内存 */
+    FlushSystemFileCache();
+    PurgeMemoryList(MemoryFlushModifiedList);
+    PurgeMemoryList(MemoryPurgeStandbyList);
+
+    /* 完整力度（仅管理员）：逐进程压缩工作集 */
+    g_ok = g_isAdmin ? TrimAllWorkingSets() : 0;
 
     g_after = AvailMB();
     g_freed = (long long)g_after - (long long)g_before;
