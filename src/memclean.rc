@@ -1,10 +1,10 @@
-1 ICON "..\\assets\\MemoryCleaner.ico"
+1 ICON "..\\assets\\Castling.ico"
 1 24 "memclean.manifest"
 2 RCDATA "..\\assets\\cap512.png"
 
 1 VERSIONINFO
-FILEVERSION 0,2,1,0
-PRODUCTVERSION 0,2,1,0
+FILEVERSION 0,3,0,0
+PRODUCTVERSION 0,3,0,0
 FILEOS 0x40004L
 FILETYPE 0x1L
 BEGIN
@@ -14,11 +14,11 @@ BEGIN
     BEGIN
       VALUE "CompanyName", "Kirun-Linser"
       VALUE "FileDescription", "清系统文件缓存、刷新已修改页、清空备用内存、压缩进程工作集\n以管理员权限使用可获得最大程度上的清理"
-      VALUE "FileVersion", "0.2.1.0"
+      VALUE "FileVersion", "0.3.0.0"
       VALUE "InternalName", "Castling"
       VALUE "OriginalFilename", "Castling.exe"
       VALUE "ProductName", "Castling"
-      VALUE "ProductVersion", "0.2.1.0"
+      VALUE "ProductVersion", "0.3.0.0"
       VALUE "Comments", "以管理员权限使用可获得最大程度上的清理"
     END
   END
