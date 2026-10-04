@@ -25,7 +25,7 @@ dist/       prebuilt releases
 
 ```bat
 cd src
-windres memclean.rc -O coff -o memclean_res.o
+windres -c 65001 memclean.rc -O coff -o memclean_res.o
 gcc -mwindows -O2 -static -specs=gcc.specs memclean.c memclean_res.o -o Castling.exe -lcomctl32 -lpsapi -lgdiplus -lole32
 ```
 
@@ -46,7 +46,7 @@ Then place the binary inside an `.app` bundle.
 | File | Description |
 |---|---|
 | `Castling.exe` | Windows main program (runs directly on Win10/11, zero dependencies) |
-| `Castling-便携版.zip` | Windows portable package (exe + instructions) |
+| `Castling-portable.zip` | Windows portable package (exe + instructions) |
 | `Castling-macOS.zip` | macOS script version (terminal + system popup) |
 | `Castling-macOS-app.tar.gz` | macOS native app (Intel + Apple Silicon) |
 

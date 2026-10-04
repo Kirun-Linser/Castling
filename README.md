@@ -25,7 +25,7 @@ dist/       编译好的发行物
 
 ```bat
 cd src
-windres memclean.rc -O coff -o memclean_res.o
+windres -c 65001 memclean.rc -O coff -o memclean_res.o
 gcc -mwindows -O2 -static -specs=gcc.specs memclean.c memclean_res.o -o Castling.exe -lcomctl32 -lpsapi -lgdiplus -lole32
 ```
 
@@ -46,7 +46,7 @@ CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -o mc-amd64 mai
 | 文件 | 说明 |
 |---|---|
 | `Castling.exe` | Windows 主程序（Win10/11 直接运行，零依赖） |
-| `Castling-便携版.zip` | Windows 便携包（exe + 说明） |
+| `Castling-portable.zip` | Windows 便携包（exe + 说明） |
 | `Castling-macOS.zip` | macOS 脚本版（终端 + 系统弹窗） |
 | `Castling-macOS-app.tar.gz` | macOS 原生 App（Intel + Apple 芯片双版本） |
 
