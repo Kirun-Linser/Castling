@@ -10,6 +10,23 @@ A lightweight memory cleaner for Windows and macOS. How it works: flushes the sy
 - **Run as administrator**: the full cleanup (per-process working-set trim, standby-list purge, system-file-cache flush) requires **"Run as administrator"**; a plain double-click only performs the parts available to a normal user (the popup hints this when you hover the OK button)
 - **macOS**: invokes the official `purge` command to clear inactive memory and system caches; native popup shows the result; double-click to run, no terminal window
 
+## Usage
+
+### Windows
+
+1. Double-click `Castling.exe`; a result window appears when the cleanup is done
+2. For the full cleanup (purge standby memory + trim all process working sets): right-click it and choose "Run as administrator"
+3. Press `Esc` or click OK to close the popup
+4. If your antivirus flags it (e.g. Huorong), add it to the trust list
+
+### macOS
+
+1. Check your chip: Apple Silicon (M1/M2/M3/M4...) uses `Castling-arm64.app`; Intel uses `Castling-amd64.app`
+   (Not sure? Use the Apple menu, then About This Mac, then look at "Chip")
+2. Drag the matching `.app` into Applications (or your Desktop)
+3. Double-click it, enter your password when prompted, and the before/after memory report appears
+4. If macOS says the developer cannot be verified: right-click the `.app`, choose Open, then click Open again
+
 ## Directory Layout
 
 ```
@@ -46,8 +63,6 @@ Then place the binary inside an `.app` bundle.
 | File | Description |
 |---|---|
 | `Castling.exe` | Windows main program (runs directly on Win10/11, zero dependencies) |
-| `Castling-portable.zip` | Windows portable package (exe + instructions) |
-| `Castling-macOS.zip` | macOS script version (terminal + system popup) |
 | `Castling-macOS-app.tar.gz` | macOS native app (Intel + Apple Silicon) |
 
 ## System Requirements
