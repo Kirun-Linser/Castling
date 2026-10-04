@@ -31,7 +31,8 @@ static BOOL g_isAdmin;
 static int g_ok;
 static long long g_freed;
 static ULONGLONG g_before, g_after;
-static int g_scale; /* dpi 缩放，百分比 */
+static int g_scale;  /* dpi 缩放，百分比 */
+static int g_radius; /* 圆角半径（随 DPI 缩放） */
 
 static BOOL EnablePrivilege(LPCWSTR name, BOOL *granted) {
     HANDLE tok; TOKEN_PRIVILEGES tp; LUID luid;
@@ -162,15 +163,13 @@ static void DrawPngIcon(HINSTANCE hInst, HDC dc, int x, int y, int w, int h) {
     stream->lpVtbl->Release(stream);
 }
 
-static void OnPaint(HWND hwnd) {
-    PAINTSTRUCT ps;
-    HDC dc = BeginPaint(hwnd, &ps);
-    RECT rc; GetClientRect(hwnd, &rc);
-    int W = rc.right, H = rc.bottom;
+/* ---- v0.3.0：抗锯齿圆角（GDI+ 路径 + 分层窗口遮罩） ---- */
+static void MakeRoundRectPath(GpPath **out, int x, int y, int w, int h, int r);
+static void DrawContentToDC(HDC mem, int W, int H);
+static void RenderWindow(HWND hwnd);
 
-    HDC mem = CreateCompatibleDC(dc);
-    HBITMAP bmp = CreateCompatibleBitmap(dc, W, H);
-    HGDIOBJ ob = SelectObject(mem, bmp);
+static void DrawContentToDC(HDC mem, int W, int H) {
+    RECT rc = { 0, 0, W, H };
 
     /* 背景（更深的黑蓝） */
     HBRUSH bg = CreateSolidBrush(RGB(0x0B, 0x0D, 0x12));
@@ -296,12 +295,116 @@ static void OnPaint(HWND hwnd) {
     SelectObject(mem, oldPen); SelectObject(mem, oldBrush);
     DeleteObject(edgePen);
 
-    BitBlt(dc, 0, 0, W, H, mem, 0, 0, SRCCOPY);
-    SelectObject(mem, ob);
-    DeleteObject(bmp);
-    DeleteDC(mem);
-    EndPaint(hwnd, &ps);
+    /* 抗锯齿圆角描边：路径内缩半个线宽，避免被窗口边界裁掉 */
+    {
+        GpGraphics *g = NULL;
+        if (GdipCreateFromHDC(mem, &g) == 0 && g) {
+            int R = g_radius;
+            GpPath *path = NULL;
+            GpPen *pen = NULL;
+            if (R * 2 > W) R = W / 2;
+            if (R * 2 > H) R = H / 2;
+            MakeRoundRectPath(&path, 1, 1, W - 2, H - 2, R);
+            GdipCreatePen1(0xFF2D5AB8u, 1.6f, UnitPixel, &pen);
+            GdipSetSmoothingMode(g, SmoothingModeAntiAlias);
+            GdipSetPixelOffsetMode(g, PixelOffsetModeHighQuality);
+            if (pen) { GdipDrawPath(g, pen, path); GdipDeletePen(pen); }
+            GdipDeletePath(path);
+            GdipDeleteGraphics(g);
+        }
+    }
 }
+
+/* ---------- 分层窗口渲染：GDI+ 抗锯齿圆角（v0.3.0） ---------- */
+
+/* 构建圆角矩形路径（半径 r，坐标 (x,y) 起，宽 w 高 h） */
+static void MakeRoundRectPath(GpPath **out, int x, int y, int w, int h, int r) {
+    GpPath *p = NULL;
+    REAL d = (REAL)(r * 2);
+    GdipCreatePath(FillModeAlternate, &p);
+    GdipAddPathArc(p, (REAL)x, (REAL)y, d, d, 180.0f, 90.0f);
+    GdipAddPathArc(p, (REAL)(x + w) - d, (REAL)y, d, d, 270.0f, 90.0f);
+    GdipAddPathArc(p, (REAL)(x + w) - d, (REAL)(y + h) - d, d, d, 0.0f, 90.0f);
+    GdipAddPathArc(p, (REAL)x, (REAL)(y + h) - d, d, d, 90.0f, 90.0f);
+    GdipClosePathFigure(p);
+    *out = p;
+}
+
+/* 整窗渲染：内容走 GDI，圆角走 GDI+ 遮罩，最后按预乘 alpha 提交给分层窗口 */
+static void RenderWindow(HWND hwnd) {
+    RECT rc; GetClientRect(hwnd, &rc);
+    int W = rc.right, H = rc.bottom;
+    if (W <= 0 || H <= 0) return;
+    int stride = W * 4, R = g_radius;
+    if (R * 2 > W) R = W / 2;
+    if (R * 2 > H) R = H / 2;
+    HDC screen = GetDC(NULL), mem = CreateCompatibleDC(screen);
+    BITMAPINFO bi; ZeroMemory(&bi, sizeof(bi));
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = W;
+    bi.bmiHeader.biHeight = -H;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    void *bits = NULL, *mk = NULL;
+    HBITMAP dib = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    HBITMAP mdib = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &mk, NULL, 0);
+    if (!dib || !mdib || !bits || !mk) {
+        if (dib) DeleteObject(dib);
+        if (mdib) DeleteObject(mdib);
+        DeleteDC(mem); ReleaseDC(NULL, screen);
+        return;
+    }
+    HGDIOBJ ob = SelectObject(mem, dib);
+    DrawContentToDC(mem, W, H);
+    SelectObject(mem, ob);
+    /* 圆角遮罩：只取 alpha 通道 */
+    memset(mk, 0, (size_t)stride * H);
+    HDC mdc = CreateCompatibleDC(screen);
+    HGDIOBJ om = SelectObject(mdc, mdib);
+    GpGraphics *g = NULL;
+    if (GdipCreateFromHDC(mdc, &g) == 0 && g) {
+        GdipSetSmoothingMode(g, SmoothingModeAntiAlias);
+        GdipSetPixelOffsetMode(g, PixelOffsetModeHighQuality);
+        GpPath *path = NULL;
+        MakeRoundRectPath(&path, 0, 0, W, H, R);
+        GpSolidFill *br = NULL;
+        GdipCreateSolidFill(0xFFFFFFFFu, &br);
+        if (br) { GdipFillPath(g, br, path); GdipDeleteBrush(br); }
+        GdipDeletePath(path);
+        GdipDeleteGraphics(g);
+    }
+    SelectObject(mdc, om);
+    DeleteDC(mdc);
+    /* 合成：RGB 取 GDI 结果，alpha 取遮罩，并做预乘 */
+    {
+        BYTE *op = (BYTE*)bits, *mp = (BYTE*)mk;
+        int i, n = W * H;
+        for (i = 0; i < n; i++) {
+            unsigned a = mp[i * 4 + 3];
+            op[i * 4 + 0] = (BYTE)(op[i * 4 + 0] * a / 255);
+            op[i * 4 + 1] = (BYTE)(op[i * 4 + 1] * a / 255);
+            op[i * 4 + 2] = (BYTE)(op[i * 4 + 2] * a / 255);
+            op[i * 4 + 3] = (BYTE)a;
+        }
+    }
+    /* 提交（pptDst 传 NULL = 保持窗口当前位置） */
+    {
+        HDC sdc = CreateCompatibleDC(screen);
+        HGDIOBJ os = SelectObject(sdc, dib);
+        BLENDFUNCTION bf;
+        SIZE sz; POINT sp;
+        bf.BlendOp = AC_SRC_OVER; bf.BlendFlags = 0;
+        bf.SourceConstantAlpha = 255; bf.AlphaFormat = AC_SRC_ALPHA;
+        sz.cx = W; sz.cy = H; sp.x = 0; sp.y = 0;
+        UpdateLayeredWindow(hwnd, screen, NULL, &sz, sdc, &sp, 0, &bf, ULW_ALPHA);
+        SelectObject(sdc, os);
+        DeleteDC(sdc);
+    }
+    DeleteObject(dib); DeleteObject(mdib);
+    DeleteDC(mem); ReleaseDC(NULL, screen);
+}
+
 
 static void InBtn(LPARAM lp, BOOL *in) {
     RECT rc; GetClientRect(g_hwnd, &rc);
@@ -314,18 +417,18 @@ static void InBtn(LPARAM lp, BOOL *in) {
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
-    case WM_PAINT: OnPaint(hwnd); return 0;
+    case WM_PAINT: RenderWindow(hwnd); ValidateRect(hwnd, NULL); return 0;
     case WM_MOUSEMOVE: {
         BOOL in = FALSE; InBtn(lp, &in);
         if (in != g_btnHover) {
             g_btnHover = in;
-            InvalidateRect(hwnd, NULL, FALSE);
+            RenderWindow(hwnd);
             TRACKMOUSEEVENT tme; tme.cbSize = sizeof(tme); tme.dwFlags = TME_LEAVE; tme.hwndTrack = hwnd;
             TrackMouseEvent(&tme);
         }
         return 0;
     }
-    case WM_MOUSELEAVE: if (g_btnHover) { g_btnHover = FALSE; InvalidateRect(hwnd, NULL, FALSE); } return 0;
+    case WM_MOUSELEAVE: if (g_btnHover) { g_btnHover = FALSE; RenderWindow(hwnd); } return 0;
     case WM_LBUTTONDOWN: {
         BOOL in = FALSE; InBtn(lp, &in);
         if (!in) { ReleaseCapture(); SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0); }
@@ -346,6 +449,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
 static void ShowResult(HINSTANCE hInst) {
     g_scale = GetDpiForSystem() * 100 / 96;
+    g_radius = 44 * g_scale / 100;
     WNDCLASSW wc; ZeroMemory(&wc, sizeof(wc));
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInst;
@@ -356,12 +460,11 @@ static void ShowResult(HINSTANCE hInst) {
 
     int W = GetSystemMetrics(SM_CXSCREEN) / 3, H = GetSystemMetrics(SM_CYSCREEN) / 3;
     int sw = GetSystemMetrics(SM_CXSCREEN), sh = GetSystemMetrics(SM_CYSCREEN);
-    HWND hwnd = CreateWindowExW(WS_EX_TOPMOST, L"MemoryCleanerDarkWnd", L"内存清理完成",
+    HWND hwnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_LAYERED, L"MemoryCleanerDarkWnd", L"内存清理完成",
         WS_POPUP, (sw - W) / 2, (sh - H) / 2, W, H, NULL, NULL, hInst, NULL);
     if (!hwnd) return;
-    HRGN rgn = CreateRoundRectRgn(0, 0, W + 1, H + 1, 44 * g_scale / 100, 44 * g_scale / 100);
-    SetWindowRgn(hwnd, rgn, TRUE);
     g_hwnd = hwnd;
+    RenderWindow(hwnd);
     ShowWindow(hwnd, SW_SHOW);
     UpdateWindow(hwnd);
     SetForegroundWindow(hwnd);
