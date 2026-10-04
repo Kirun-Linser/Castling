@@ -38,5 +38,5 @@ func memLine() string {
 func dialog(msg string, icon string) {
 	esc := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(msg)
 	exec.Command("osascript", "-e",
-		`display dialog "`+esc+`" buttons {"好"} default button 1 with title "MemoryCleaner" with icon `+icon).Run()
+		`display dialog "`+esc+`" buttons {"好"} default button 1 with title "Castling" with icon `+icon).Run()
 }
